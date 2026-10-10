@@ -1,6 +1,7 @@
 // Edit form for the custom fields of a local Pokémon: values, client-side validation that
 // mirrors the backend rules (API.md, endpoint 6) and mapping of server field errors.
 import type { FieldError } from '@/types/api'
+import { mapFieldErrors, type MappedFieldErrors } from '@/utils/fieldErrors'
 import type { LocalPokemon, UpdateLocalPokemonRequest } from '@/types/pokemon'
 
 export const LOCALIZED_NAME_MAX_LENGTH = 100
@@ -103,37 +104,9 @@ export function hasFieldMessages(messages: FieldMessages): boolean {
   return FORM_FIELDS.some((field) => messages[field].length > 0)
 }
 
-/** "must be at most 100 characters" → "Must be at most 100 characters." */
-function toSentence(message: string): string {
-  const text = message.trim()
-  if (!text) return text
-  const sentence = text.charAt(0).toUpperCase() + text.slice(1)
-  return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`
-}
-
-function isFormField(field: string): field is FormField {
-  return (FORM_FIELDS as readonly string[]).includes(field)
-}
-
-export interface MappedServerErrors {
-  /** Messages per input (a field can have several). */
-  fields: FieldMessages
-  /** Errors for fields the form doesn't have (e.g. an unknown JSON field), shown in the summary. */
-  other: string[]
-}
+export type MappedServerErrors = MappedFieldErrors<FormField>
 
 /** Maps backend `errors[]` onto the inputs: "tags[1]" → tags; repeated fields are kept. */
 export function mapServerFieldErrors(errors: readonly FieldError[]): MappedServerErrors {
-  const fields = emptyFieldMessages()
-  const other: string[] = []
-  for (const { field, message } of errors) {
-    const base = field.split(/[[.]/)[0] ?? field
-    const text = toSentence(message)
-    if (isFormField(base)) {
-      if (!fields[base].includes(text)) fields[base].push(text)
-    } else {
-      other.push(`${field}: ${message}`)
-    }
-  }
-  return { fields, other }
+  return mapFieldErrors(errors, FORM_FIELDS)
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, shallowRef, useId, watch } from 'vue'
 import type { QInput } from 'quasar'
+import FormErrorSummary from '@/components/common/FormErrorSummary.vue'
 import TagInput from '@/components/form/TagInput.vue'
 import type { ApiRequestError } from '@/services/http'
 import type { UpdateLocalPokemonRequest } from '@/types/pokemon'
@@ -226,33 +227,13 @@ const regionLength = computed(() => values.region.trim().length)
       :disable="saving"
     />
 
-    <div
+    <FormErrorSummary
       v-if="summary"
       :id="ids.summary"
-      class="form-summary q-pa-md rounded-borders text-body2"
-      role="alert"
-      data-test="form-summary"
-    >
-      <div class="row items-start no-wrap">
-        <q-icon
-          name="error_outline"
-          color="negative"
-          size="20px"
-          class="q-mr-sm"
-          aria-hidden="true"
-        />
-        <div>
-          <div class="text-weight-medium">{{ summary.message }}</div>
-          <ul v-if="summary.details.length" class="q-my-xs q-pl-md">
-            <li v-for="detail in summary.details" :key="detail">{{ detail }}</li>
-          </ul>
-          <div v-if="summary.errorId" class="text-grey-8">
-            Error ID:
-            <code class="text-tabular" data-test="form-error-id">{{ summary.errorId }}</code>
-          </div>
-        </div>
-      </div>
-    </div>
+      :message="summary.message"
+      :details="summary.details"
+      :error-id="summary.errorId"
+    />
 
     <div class="row items-center justify-between q-gutter-sm">
       <div class="row q-gutter-sm">
@@ -302,11 +283,3 @@ const regionLength = computed(() => values.region.trim().length)
     </div>
   </q-form>
 </template>
-
-<style scoped>
-.form-summary {
-  border: 1px solid var(--q-negative);
-  border-left-width: 4px;
-  background: #fff;
-}
-</style>

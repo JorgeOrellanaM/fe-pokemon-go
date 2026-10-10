@@ -62,6 +62,30 @@ export interface RequestOptions {
   query?: QueryParams
   body?: unknown
   signal?: AbortSignal
+  /**
+   * `true` (default): send the session token when there is one, and treat a `401` as the end of
+   * the session. `false` for login/register, where a `401` is a plain answer
+   * ("Invalid username or password.") and a token is irrelevant.
+   */
+  auth?: boolean
+}
+
+/**
+ * How the client takes part in authentication. Injected by the app (see `router/auth.ts`) so
+ * this module stays free of stores and routing, and tests can run without them.
+ */
+export interface AuthHandlers {
+  /** `Authorization` header value, or `null` when logged out. Must never return an expired token. */
+  getAuthorization(): string | null
+  /** Called on a `401` from a request made with `auth: true`, before the error is thrown. */
+  onUnauthorized(error: ApiRequestError): void
+}
+
+let authHandlers: AuthHandlers | null = null
+
+/** Installs (or, with `null`, removes) the authentication handlers. */
+export function setAuthHandlers(handlers: AuthHandlers | null): void {
+  authHandlers = handlers
 }
 
 export function buildUrl(path: string, query?: QueryParams): string {
@@ -105,12 +129,26 @@ function fallbackMessage(status: number): string {
 /**
  * Calls the backend, unwraps the `{ success, data }` envelope and returns `data`.
  * Throws {@link ApiRequestError} on any failure; re-throws `AbortError` untouched so callers
- * can ignore cancelled requests.
+ * can ignore cancelled requests. Sends the session token, if any (see {@link AuthHandlers}).
  */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', query, body, signal } = options
+  try {
+    return await sendRequest<T>(path, options)
+  } catch (error) {
+    // Only a 401 means the token is no longer valid; 403, 5xx and network errors keep it.
+    if (error instanceof ApiRequestError && error.status === 401 && options.auth !== false) {
+      authHandlers?.onUnauthorized(error)
+    }
+    throw error
+  }
+}
+
+async function sendRequest<T>(path: string, options: RequestOptions): Promise<T> {
+  const { method = 'GET', query, body, signal, auth = true } = options
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const authorization = auth ? authHandlers?.getAuthorization() : null
+  if (authorization) headers.Authorization = authorization
 
   let response: Response
   try {

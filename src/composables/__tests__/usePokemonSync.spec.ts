@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { Notify, Quasar, type QNotifyCreateOptions } from 'quasar'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { logInForTest } from '@/__tests__/authSession'
 import { usePokemonSync } from '@/composables/usePokemonSync'
 import { ApiRequestError } from '@/services/http'
 import { localPokemonService } from '@/services/localPokemonService'
@@ -21,10 +22,13 @@ vi.mock('@/services/localPokemonService', () => ({
 
 const syncMock = vi.mocked(localPokemonService.sync)
 
-async function setup() {
+async function setup({ loggedIn = true } = {}) {
+  const pinia = createPinia()
+  if (loggedIn) await logInForTest(pinia)
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
+      { path: '/login', name: 'login', component: { template: '<div />' } },
       { path: '/', component: { template: '<div />' } },
       { path: '/collection/:id', name: 'local-pokemon', component: { template: '<div />' } },
     ],
@@ -37,7 +41,7 @@ async function setup() {
       return () => null
     },
   })
-  mount(Host, { global: { plugins: [Quasar, createPinia(), router] } })
+  mount(Host, { global: { plugins: [Quasar, pinia, router] } })
   return { api, router }
 }
 
@@ -123,5 +127,29 @@ describe('usePokemonSync', () => {
     )
     expect(notification.caption).toBeUndefined()
     expect(notification.actions?.[0]).toMatchObject({ 'aria-label': 'Dismiss' })
+  })
+
+  it('sends logged-out users to the login page instead of syncing', async () => {
+    const { api, router } = await setup({ loggedIn: false })
+    await router.push('/collection/7')
+
+    const result = await api.sync(25, 'pikachu')
+
+    expect(result.status).toBe('login-required')
+    expect(syncMock).not.toHaveBeenCalled()
+    expect(api.canSync.value).toBe(false)
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.redirect).toBe('/collection/7')
+    expect(lastNotification().message).toBe('Log in to add Pikachu to your collection.')
+  })
+
+  it('leaves a 401 to the session handling (no error notification)', async () => {
+    syncMock.mockRejectedValue(new ApiRequestError({ status: 401, message: 'Authentication…' }))
+    const { api } = await setup()
+
+    const result = await api.sync(25, 'pikachu')
+
+    expect(result.status).toBe('failed')
+    expect(Notify.create).not.toHaveBeenCalled()
   })
 })

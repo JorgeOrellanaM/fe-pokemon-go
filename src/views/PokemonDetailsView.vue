@@ -19,7 +19,7 @@ const $q = useQuasar()
 const route = useRoute()
 
 const { data, loading, error, load, retry, reset } = useAsyncResource(pokemonService.get)
-const { sync, isSynced, isSyncing } = usePokemonSync()
+const { sync, isSynced, isSyncing, canSync } = usePokemonSync()
 
 const rawId = computed(() => {
   const param = route.params.id
@@ -99,6 +99,7 @@ const showError = computed(() => pokemonId.value === null || (!loading.value && 
           :pokemon-name="formatPokemonName(data.name)"
           :synced="isSynced(pokemonId)"
           :syncing="isSyncing(pokemonId)"
+          :login-required="!canSync"
           :to="localEntryLink(pokemonId)"
           @sync="sync(data.id, data.name)"
         />

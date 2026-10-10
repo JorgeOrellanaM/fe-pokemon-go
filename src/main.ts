@@ -13,10 +13,13 @@ import './css/app.scss'
 
 import App from './App.vue'
 import router from './router'
+import { installSessionHandlers } from './router/auth'
 
 const app = createApp(App)
 
 app.use(createPinia())
+// Before the router starts its first navigation, so every request carries the session.
+installSessionHandlers(router)
 app.use(router)
 app.use(Quasar, {
   plugins: { Dialog, Notify, Loading },

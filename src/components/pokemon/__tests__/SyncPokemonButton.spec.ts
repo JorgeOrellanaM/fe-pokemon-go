@@ -4,7 +4,7 @@ import { Quasar } from 'quasar'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import SyncPokemonButton from '@/components/pokemon/SyncPokemonButton.vue'
 
-async function mountButton(props: { synced: boolean; syncing: boolean }) {
+async function mountButton(props: { synced: boolean; syncing: boolean; loginRequired?: boolean }) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -53,5 +53,15 @@ describe('SyncPokemonButton', () => {
     await button.trigger('click')
     await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/collection/25'))
     expect(wrapper.emitted('sync')).toBeUndefined()
+  })
+
+  it('says that adding needs a login, and still emits "sync"', async () => {
+    const { wrapper } = await mountButton({ synced: false, syncing: false, loginRequired: true })
+    const button = wrapper.get('button')
+
+    expect(button.text()).toContain('Add to collection')
+    expect(button.attributes('aria-label')).toBe('Log in to add Pikachu to your collection')
+    await button.trigger('click')
+    expect(wrapper.emitted('sync')).toHaveLength(1)
   })
 })

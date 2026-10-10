@@ -1,5 +1,8 @@
+import { computed } from 'vue'
 import { Notify } from 'quasar'
-import { useRouter, type RouteLocationRaw } from 'vue-router'
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
+import { loginLocation } from '@/router/auth'
+import { useAuthStore } from '@/stores/auth'
 import { useCollectionStore, type SyncResult } from '@/stores/collection'
 import { formatPokedexId, formatPokemonName } from '@/utils/format'
 
@@ -8,14 +11,22 @@ export function localEntryLink(id: number): RouteLocationRaw {
   return { name: 'local-pokemon', params: { id: String(id) } }
 }
 
+/** A sync attempt: the store's result, or `login-required` when the user isn't logged in. */
+export type SyncOutcome = SyncResult | { status: 'login-required' }
+
 /**
  * Sync action with user feedback: notifications (announced by screen readers, `role="alert"`)
  * that link to the local entry. A 409 is reported as "already in your collection", not as an
  * error. The state itself lives in the collection store so every view stays consistent.
+ *
+ * Syncing needs a login (`POST /local-pokemon/{id}/sync` is protected): logged-out users are
+ * sent to the login page, which brings them back here afterwards.
  */
 export function usePokemonSync() {
   const store = useCollectionStore()
+  const auth = useAuthStore()
   const router = useRouter()
+  const route = useRoute()
 
   function viewAction(id: number) {
     return {
@@ -27,8 +38,14 @@ export function usePokemonSync() {
   }
 
   /** `name` is the PokeAPI name; without it the Pokédex number is used in messages. */
-  async function sync(id: number, name?: string): Promise<SyncResult> {
+  async function sync(id: number, name?: string): Promise<SyncOutcome> {
     const displayName = name ? formatPokemonName(name) : `Pokémon ${formatPokedexId(id)}`
+    if (!auth.hasValidSession()) {
+      Notify.create({ type: 'info', message: `Log in to add ${displayName} to your collection.` })
+      await router.push(loginLocation(route.fullPath))
+      return { status: 'login-required' }
+    }
+
     const result = await store.sync(id)
 
     if (result.status === 'created') {
@@ -43,7 +60,8 @@ export function usePokemonSync() {
         message: `${displayName} is already in your collection.`,
         actions: [viewAction(id)],
       })
-    } else {
+    } else if (result.error.status !== 401) {
+      // A 401 means the session ended: the app already redirects to the login page.
       const { error } = result
       Notify.create({
         type: 'negative',
@@ -58,5 +76,11 @@ export function usePokemonSync() {
     return result
   }
 
-  return { sync, isSynced: store.isSynced, isSyncing: store.isSyncing }
+  return {
+    sync,
+    isSynced: store.isSynced,
+    isSyncing: store.isSyncing,
+    /** Whether the user can sync right now (otherwise `sync` redirects to the login page). */
+    canSync: computed(() => auth.isAuthenticated),
+  }
 }

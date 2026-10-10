@@ -7,8 +7,10 @@ import PokemonCard from '@/components/pokemon/PokemonCard.vue'
 import PokemonCardSkeleton from '@/components/pokemon/PokemonCardSkeleton.vue'
 import { useLocalPokemonEntry } from '@/composables/useLocalPokemonEntry'
 import { usePokemonSync } from '@/composables/usePokemonSync'
+import { useAuthStore } from '@/stores/auth'
 
-const { sync, isSyncing } = usePokemonSync()
+const { sync, isSyncing, canSync } = usePokemonSync()
+const auth = useAuthStore()
 const {
   data,
   loading,
@@ -41,7 +43,7 @@ async function addToCollection() {
   const id = pokemonId.value
   if (id === null) return
   const result = await sync(id)
-  if (result.status !== 'failed') await load(id)
+  if (result.status === 'created' || result.status === 'already-synced') await load(id)
 }
 </script>
 
@@ -74,8 +76,9 @@ async function addToCollection() {
                 unelevated
                 no-caps
                 color="primary"
-                icon="bookmark_add"
                 label="Add to collection"
+                :icon="canSync ? 'bookmark_add' : 'lock'"
+                :aria-label="canSync ? undefined : 'Log in to add to your collection'"
                 :loading="isSyncing(pokemonId)"
                 data-test="add-to-collection"
                 @click="addToCollection"
@@ -115,11 +118,15 @@ async function addToCollection() {
               unelevated
               no-caps
               color="primary"
-              icon="edit"
+              :icon="auth.isAuthenticated ? 'edit' : 'lock'"
               label="Edit details"
+              :aria-label="auth.isAuthenticated ? undefined : 'Log in to edit details'"
               :to="editLink"
               data-test="edit"
-            />
+            >
+              <!-- The edit route requires a login: the guard sends the user to log in first. -->
+              <q-tooltip v-if="!auth.isAuthenticated">Log in to edit your details</q-tooltip>
+            </q-btn>
           </template>
         </PokemonCard>
       </section>

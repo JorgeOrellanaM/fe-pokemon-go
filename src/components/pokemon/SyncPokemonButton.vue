@@ -9,17 +9,23 @@ const props = defineProps<{
   syncing: boolean
   /** The local collection entry, opened once the Pokémon is synced. */
   to: RouteLocationRaw
+  /** Adding needs a login: the button says so (the parent sends the user to log in). */
+  loginRequired?: boolean
 }>()
 
 const emit = defineEmits<{ sync: [] }>()
 const router = useRouter()
 
 const label = computed(() => (props.synced ? 'In collection' : 'Add to collection'))
-const ariaLabel = computed(() =>
-  props.synced
-    ? `${props.pokemonName} is in your collection. View entry`
-    : `Add ${props.pokemonName} to your collection`,
-)
+const ariaLabel = computed(() => {
+  if (props.synced) return `${props.pokemonName} is in your collection. View entry`
+  if (props.loginRequired) return `Log in to add ${props.pokemonName} to your collection`
+  return `Add ${props.pokemonName} to your collection`
+})
+const icon = computed(() => {
+  if (props.synced) return 'check_circle'
+  return props.loginRequired ? 'lock' : 'bookmark_add'
+})
 
 // One <button> for both states, so keyboard focus stays put when the sync completes.
 function onClick() {
@@ -34,7 +40,7 @@ function onClick() {
     :outline="!synced"
     :flat="synced"
     :color="synced ? 'positive' : 'secondary'"
-    :icon="synced ? 'check_circle' : 'bookmark_add'"
+    :icon="icon"
     :label="label"
     :aria-label="ariaLabel"
     :loading="syncing"
@@ -45,5 +51,6 @@ function onClick() {
       <q-spinner size="1em" class="q-mr-sm" />
       Adding…
     </template>
+    <q-tooltip v-if="loginRequired && !synced">Log in to add to your collection</q-tooltip>
   </q-btn>
 </template>

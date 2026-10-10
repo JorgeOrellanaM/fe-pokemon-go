@@ -13,7 +13,7 @@ import { formatPokemonName } from '@/utils/format'
 
 const { data, loading, error, load, retry } = usePagedResource(pokemonService.list)
 const { pageRequest, pagingQuery, currentPage, pageSize, normalizeQuery } = useRoutePaging()
-const { sync, isSynced, isSyncing } = usePokemonSync()
+const { sync, isSynced, isSyncing, canSync } = usePokemonSync()
 
 // The URL is the single source of truth for paging (shareable, back/forward friendly).
 watch(
@@ -58,6 +58,7 @@ function detailsLink(id: number): RouteLocationRaw {
                 :pokemon-name="formatPokemonName(pokemon.name)"
                 :synced="isSynced(pokemon.id)"
                 :syncing="isSyncing(pokemon.id)"
+                :login-required="!canSync"
                 :to="localEntryLink(pokemon.id)"
                 @sync="sync(pokemon.id, pokemon.name)"
               />

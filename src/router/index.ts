@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
+import { LOGIN_ROUTE, REGISTER_ROUTE, createAuthGuard } from '@/router/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -31,9 +32,23 @@ const router = createRouter({
           component: () => import('@/views/LocalPokemonView.vue'),
         },
         {
+          // Saving needs a login (PUT /local-pokemon/{id} is protected).
           path: 'collection/:id/edit',
           name: 'local-pokemon-edit',
           component: () => import('@/views/LocalPokemonEditView.vue'),
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'login',
+          name: LOGIN_ROUTE,
+          component: () => import('@/views/LoginView.vue'),
+          meta: { guestOnly: true },
+        },
+        {
+          path: 'register',
+          name: REGISTER_ROUTE,
+          component: () => import('@/views/RegisterView.vue'),
+          meta: { guestOnly: true },
         },
         {
           path: 'about',
@@ -48,5 +63,7 @@ const router = createRouter({
     return savedPosition ?? { top: 0 }
   },
 })
+
+router.beforeEach(createAuthGuard(router))
 
 export default router

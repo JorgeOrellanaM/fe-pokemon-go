@@ -7,7 +7,9 @@ import {
   apiGet,
   apiRequest,
   buildUrl,
+  setAuthHandlers,
   toApiRequestError,
+  type AuthHandlers,
 } from '@/services/http'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -166,5 +168,82 @@ describe('toApiRequestError', () => {
     const wrapped = toApiRequestError(new Error('boom'))
     expect(wrapped.message).toBe(UNEXPECTED_ERROR_MESSAGE)
     expect(wrapped.message).not.toContain('boom')
+  })
+})
+
+describe('authentication', () => {
+  const onUnauthorized = vi.fn<AuthHandlers['onUnauthorized']>()
+  let authorization: string | null = 'Bearer abc'
+
+  function errorEnvelope(status: number) {
+    return jsonResponse(
+      {
+        success: false,
+        error: {
+          status,
+          error: 'Error',
+          message: 'Authentication is required to access this resource.',
+          path: '/api/v1/local-pokemon/25',
+          timestamp: '2026-10-10T11:46:04.217Z',
+          errorId: 'c472d152',
+        },
+      },
+      status,
+    )
+  }
+
+  beforeEach(() => {
+    authorization = 'Bearer abc'
+    onUnauthorized.mockReset()
+    setAuthHandlers({ getAuthorization: () => authorization, onUnauthorized })
+  })
+
+  afterEach(() => setAuthHandlers(null))
+
+  it('sends the session token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: {} }))
+
+    await apiRequest('/local-pokemon/25', { method: 'PUT', body: {} })
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ Authorization: 'Bearer abc' })
+  })
+
+  it('sends no Authorization header when logged out', async () => {
+    authorization = null
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: {} }))
+
+    await apiGet('/pokemon')
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual({ Accept: 'application/json' })
+  })
+
+  it('reports a 401 as an ended session, then still rejects', async () => {
+    fetchMock.mockResolvedValue(errorEnvelope(401))
+
+    const error = (await captureError(apiGet('/local-pokemon'))) as ApiRequestError
+
+    expect(error.status).toBe(401)
+    expect(onUnauthorized).toHaveBeenCalledWith(error)
+  })
+
+  it('keeps the session on 403, 5xx and network errors', async () => {
+    fetchMock.mockResolvedValueOnce(errorEnvelope(403))
+    fetchMock.mockResolvedValueOnce(errorEnvelope(500))
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    await captureError(apiGet('/a'))
+    await captureError(apiGet('/b'))
+    await captureError(apiGet('/c'))
+
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('skips the token and the 401 handling for `auth: false` requests', async () => {
+    fetchMock.mockResolvedValue(errorEnvelope(401))
+
+    await captureError(apiRequest('/auth/login', { method: 'POST', body: {}, auth: false }))
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Authorization')
+    expect(onUnauthorized).not.toHaveBeenCalled()
   })
 })

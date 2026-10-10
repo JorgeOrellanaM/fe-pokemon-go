@@ -2,6 +2,25 @@
 
 This template should help get you started developing with Vue 3 in Vite.
 
+## Authentication
+
+Browsing the Pokédex and the collection is public. Adding a Pokémon to the collection (Sync)
+and editing its details need a login (see [AUTH.md](AUTH.md) for the backend contract).
+
+- **Demo account:** `demo` / `Pokemon123!` (the login page can fill it in), or create one at `/register`.
+  Registering does not log you in: you are sent to the login page with your username filled in.
+- **Session:** the JWT is kept in `sessionStorage` (never `localStorage`) and restored on reload
+  with `GET /auth/me`. It is dropped when it expires or when the API answers `401`, and the
+  user is sent to the login page, then back to where they were (`?redirect=`).
+- **Code:** `src/stores/auth.ts` (session state), `src/services/authService.ts` (endpoints),
+  `src/router/auth.ts` (route guard, token attachment, 401/expiry handling),
+  `src/utils/authForm.ts` (client-side validation mirroring the backend rules),
+  `src/views/LoginView.vue` and `src/views/RegisterView.vue`.
+- Routes with `meta.requiresAuth` (the edit page) need a login; `meta.guestOnly` (login,
+  register) redirect logged-in users away.
+- In development, Vite proxies `/api` to `http://localhost:8080` (override with
+  `VITE_API_PROXY_TARGET`), since the backend has no CORS configuration.
+
 ## Recommended IDE Setup
 
 [VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).

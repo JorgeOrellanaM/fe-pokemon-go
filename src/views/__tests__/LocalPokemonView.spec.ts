@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { Notify, Quasar } from 'quasar'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { logInForTest } from '@/__tests__/authSession'
 import LocalPokemonView from '@/views/LocalPokemonView.vue'
 import { ApiRequestError } from '@/services/http'
 import { localPokemonService } from '@/services/localPokemonService'
@@ -42,10 +43,13 @@ const notSynced = new ApiRequestError({
   errorId: '0c9e5f12',
 })
 
-async function mountAt(url: string) {
+async function mountAt(url: string, { loggedIn = true } = {}) {
+  const pinia = createPinia()
+  if (loggedIn) await logInForTest(pinia)
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
+      { path: '/login', name: 'login', component: { template: '<div />' } },
       { path: '/', name: 'pokemon-catalog', component: { template: '<div />' } },
       { path: '/pokemon/:id', name: 'pokemon-details', component: { template: '<div />' } },
       { path: '/collection', name: 'local-collection', component: { template: '<div />' } },
@@ -61,7 +65,7 @@ async function mountAt(url: string) {
   await router.isReady()
   const wrapper = mount(LocalPokemonView, {
     global: {
-      plugins: [Quasar, createPinia(), router],
+      plugins: [Quasar, pinia, router],
       stubs: { QPage: { template: '<main><slot /></main>' } },
     },
   })
